@@ -63,83 +63,34 @@ protected:
     void paint(QPainter *painter, const QStyleOptionViewItem &option,
                const QModelIndex &index) const override
     {
-        const QStyleOptionViewItemV4 *viewItemOption =
-           qstyleoption_cast<const QStyleOptionViewItemV4 *>(&option); // This is for Qt4 compatibility. Should be a noop in Qt5
-        QStyle *style = viewItemOption->widget ? viewItemOption->widget->style() : QApplication::style();
-        QStyleOptionButton checkboxOption = copyStyleOptions(option, index);
-        painter->save();
+        QStyleOptionViewItem opt = option;
+        initStyleOption(&opt, index);
         QString title = index.data(Qt::DisplayRole).toString();
-        const QString description = index.data(Qt::ToolTipRole).toString();
-        const int vMargin = viewItemOption->widget->style()->pixelMetric(QStyle::PM_FocusFrameVMargin);
-        const int hMargin = viewItemOption->widget->style()->pixelMetric(QStyle::PM_FocusFrameHMargin)
-                          + viewItemOption->widget->style()->pixelMetric(QStyle::PM_CheckBoxLabelSpacing);
-        const QRect checkboxRect = style->subElementRect(QStyle::SE_CheckBoxIndicator, &checkboxOption, viewItemOption->widget);
-        const QRect textRect = option.rect.adjusted(checkboxRect.width() + hMargin, vMargin, -hMargin, -vMargin);
-        const QFontMetrics metrics(option.font);
-        const QRect titleRect(textRect.left(),
-                              textRect.top(),
-                              textRect.width(),
-                              metrics.height());
-        const QRect descriptionRect = metrics.boundingRect(textRect, Qt::TextWordWrap, description)
-                                             .translated(0, vMargin + titleRect.height());
+        QString description = index.data(Qt::ToolTipRole).toString();
+        QStyle *style = option.widget ? option.widget->style() : QApplication::style();
 
-        const QRect descriptionRect2 = metrics.boundingRect(viewItemOption->rect.adjusted(checkboxRect.width(),0,0,0), Qt::TextWordWrap, description);
+        opt.text = index.data(Qt::DisplayRole).toString() + QChar::LineSeparator + index.data(Qt::ToolTipRole).toString();
+        auto textRect = style->subElementRect(QStyle::SE_ItemViewItemText, &opt);
 
+        // We first paint a normal ItemViewItem but with no text and then draw the title and description ourselves
         painter->save();
-        painter->drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, title);
-        painter->restore();
+        opt.text.clear();
+        style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, option.widget);
+        style->drawItemText(painter, textRect, Qt::AlignLeft | Qt::AlignTop, opt.palette, opt.state & QStyle::State_Enabled, title, QPalette::Text);
         painter->setOpacity(0.5);
-        painter->drawText(descriptionRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, description);
+        style->drawItemText(painter, textRect, Qt::AlignLeft | Qt::AlignBottom | Qt::TextWordWrap, opt.palette,
+                            opt.state & QStyle::State_Enabled, description, QPalette::Text);
         painter->restore();
-
-
-        style->drawControl(QStyle::CE_CheckBox, &checkboxOption, painter, viewItemOption->widget);
-    }
-
-    QStyleOptionButton copyStyleOptions(QStyleOptionViewItemV4 viewOption, const QModelIndex &index) const
-    {
-        initStyleOption(&viewOption, index);
-        QStyleOptionButton checkboxOption;
-        checkboxOption.direction = viewOption.direction;
-        checkboxOption.fontMetrics = viewOption.fontMetrics;
-        checkboxOption.palette = viewOption.palette;
-        checkboxOption.rect = viewOption.rect;
-        checkboxOption.state = viewOption.state;
-#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
-        checkboxOption.styleObject = viewOption.styleObject;
-#endif
-        if (viewOption.checkState == Qt::Checked) {
-            checkboxOption.state |= QStyle::State_On;
-        }
-        return checkboxOption;
     }
 
     QSize sizeHint(const QStyleOptionViewItem &option,
                    const QModelIndex &index) const override
     {
-        const QStyleOptionViewItemV4 *viewItemOption =
-           qstyleoption_cast<const QStyleOptionViewItemV4 *>(&option); // This is for Qt4 compatibility. Should be a noop in Qt5
-        Q_ASSERT(viewItemOption);
-
-        QStyleOptionButton checkboxOption = copyStyleOptions(*viewItemOption, index);
-
-        const QString title = index.data(Qt::DisplayRole).toString();
-        const QString description = index.data(Qt::ToolTipRole).toString();
-        const QFontMetrics metrics(option.font);
-        const int vMargin = viewItemOption->widget->style()->pixelMetric(QStyle::PM_FocusFrameVMargin);
-        const int hMargin = viewItemOption->widget->style()->pixelMetric(QStyle::PM_FocusFrameHMargin)
-                          + viewItemOption->widget->style()->pixelMetric(QStyle::PM_CheckBoxLabelSpacing);
-        const QRect checkboxRect = viewItemOption->widget->style()->subElementRect(QStyle::SE_CheckBoxIndicator, &checkboxOption, viewItemOption->widget);
-        const QRect titleRect = metrics.boundingRect(title);
-        const int textAvailableWidth = qobject_cast<const QListView*>(viewItemOption->widget)->width() // FIXME this is the wrong size if the view has a horizontal scrollbar...
-            - 2 * viewItemOption->widget->style()->pixelMetric(QStyle::PM_FocusFrameHMargin) - checkboxRect.width();
-        const QRect descriptionRect = metrics.boundingRect(QRect(0,0,textAvailableWidth, 0), Qt::TextWordWrap, description);
-        const int textWidth = qMax(titleRect.width(), descriptionRect.width());
-        const int textHeight = titleRect.height() + descriptionRect.height();
-        const int totalWidth = checkboxRect.width() + textWidth + hMargin * 2;
-        const int totalHeight = textHeight + vMargin * 3;
-
-        return QSize(totalWidth, totalHeight);
+        QStyleOptionViewItem opt = option;
+        initStyleOption(&opt, index);
+        opt.text = index.data(Qt::DisplayRole).toString() + QChar::LineSeparator + index.data(Qt::ToolTipRole).toString();
+        QStyle *style = option.widget ? option.widget->style() : QApplication::style();
+        return style->sizeFromContents(QStyle::CT_ItemViewItem, &opt, QSize(), option.widget);
     }
 };
 
